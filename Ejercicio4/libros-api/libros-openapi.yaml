@@ -1,0 +1,250 @@
+openapi: 3.0.3
+info:
+  title: API de libros de una biblioteca
+  version: 1.0.0
+  description: |
+    Contrato del Ejercicio 1 para su posterior implementación en Java y Spring Boot.
+    Los cuerpos de las solicitudes y respuestas utilizan JSON.
+    El servidor genera el ID de cada libro y este no se puede modificar.
+    Para simplificar la consulta individual, los títulos deben ser únicos.
+    Los títulos se comparan de forma exacta, distinguiendo mayúsculas y acentos.
+    Los campos de texto deben contener al menos un carácter distinto de espacio.
+servers:
+  - url: http://localhost:8080
+    description: Servidor local
+tags:
+  - name: Libros
+    description: Administración de libros
+paths:
+  /libros:
+    post:
+      tags: [Libros]
+      summary: Registrar un libro
+      operationId: registrarLibro
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LibroEntrada'
+      responses:
+        '201':
+          description: Libro registrado con un ID generado por el servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Libro'
+        '400':
+          $ref: '#/components/responses/SolicitudInvalida'
+        '409':
+          $ref: '#/components/responses/TituloDuplicado'
+    get:
+      tags: [Libros]
+      summary: Consultar todos los libros
+      operationId: consultarLibros
+      responses:
+        '200':
+          description: Lista de libros. Si no hay registros, devuelve un arreglo vacío ([]).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Libro'
+              example:
+                - id: 1
+                  titulo: El principito
+                  autor: Antoine de Saint-Exupéry
+                  isbn: '9780156012195'
+                  anioPublicacion: 1943
+                  estado: DISPONIBLE
+  /libros/titulo/{titulo}:
+    get:
+      tags: [Libros]
+      summary: Consultar un libro por título
+      description: |
+        Busca un único libro por coincidencia exacta del título.
+        El título debe codificarse como un segmento de URL;
+        por ejemplo, El principito se envía como El%20principito.
+      operationId: consultarLibroPorTitulo
+      parameters:
+        - name: titulo
+          in: path
+          required: true
+          description: Título completo del libro, respetando mayúsculas y acentos.
+          schema:
+            type: string
+            minLength: 1
+            pattern: '\S'
+          example: El principito
+      responses:
+        '200':
+          description: Libro encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Libro'
+        '400':
+          $ref: '#/components/responses/SolicitudInvalida'
+        '404':
+          $ref: '#/components/responses/LibroNoEncontrado'
+  /libros/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: ID del libro que se desea actualizar o eliminar.
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+        example: 1
+    put:
+      tags: [Libros]
+      summary: Actualizar un libro
+      description: |
+        Reemplaza todos los datos editables de un libro existente y conserva su ID.
+        Todos los campos del cuerpo son obligatorios. No crea libros nuevos.
+        El título puede conservarse o cambiarse por uno que no use otro libro.
+      operationId: actualizarLibro
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LibroEntrada'
+            example:
+              titulo: El principito
+              autor: Antoine de Saint-Exupéry
+              isbn: '9780156012195'
+              anioPublicacion: 1943
+              estado: PRESTADO
+      responses:
+        '200':
+          description: Libro actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Libro'
+              example:
+                id: 1
+                titulo: El principito
+                autor: Antoine de Saint-Exupéry
+                isbn: '9780156012195'
+                anioPublicacion: 1943
+                estado: PRESTADO
+        '400':
+          $ref: '#/components/responses/SolicitudInvalida'
+        '404':
+          $ref: '#/components/responses/LibroNoEncontrado'
+        '409':
+          $ref: '#/components/responses/TituloDuplicado'
+    delete:
+      tags: [Libros]
+      summary: Eliminar un libro
+      operationId: eliminarLibro
+      responses:
+        '204':
+          description: Libro eliminado. La respuesta no contiene cuerpo.
+        '400':
+          $ref: '#/components/responses/SolicitudInvalida'
+        '404':
+          $ref: '#/components/responses/LibroNoEncontrado'
+components:
+  schemas:
+    LibroEntrada:
+      type: object
+      description: Datos obligatorios para registrar o actualizar un libro, sin ID.
+      required:
+        - titulo
+        - autor
+        - isbn
+        - anioPublicacion
+        - estado
+      properties:
+        titulo:
+          type: string
+          minLength: 1
+          pattern: '\S'
+          description: Título único del libro.
+          example: El principito
+        autor:
+          type: string
+          minLength: 1
+          pattern: '\S'
+          example: Antoine de Saint-Exupéry
+        isbn:
+          type: string
+          minLength: 1
+          pattern: '\S'
+          description: ISBN como texto para conservar ceros iniciales o guiones.
+          example: '9780156012195'
+        anioPublicacion:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 9999
+          example: 1943
+        estado:
+          type: string
+          description: Disponibilidad del libro en la biblioteca.
+          enum: [DISPONIBLE, PRESTADO]
+          example: DISPONIBLE
+      example:
+        titulo: El principito
+        autor: Antoine de Saint-Exupéry
+        isbn: '9780156012195'
+        anioPublicacion: 1943
+        estado: DISPONIBLE
+    Libro:
+      description: Datos de un libro, incluido el ID generado por el servidor.
+      allOf:
+        - $ref: '#/components/schemas/LibroEntrada'
+        - type: object
+          required: [id]
+          properties:
+            id:
+              type: integer
+              format: int64
+              minimum: 1
+              readOnly: true
+              example: 1
+      example:
+        id: 1
+        titulo: El principito
+        autor: Antoine de Saint-Exupéry
+        isbn: '9780156012195'
+        anioPublicacion: 1943
+        estado: DISPONIBLE
+    Error:
+      type: object
+      required: [mensaje]
+      properties:
+        mensaje:
+          type: string
+          example: Libro no encontrado.
+  responses:
+    SolicitudInvalida:
+      description: JSON mal formado, campos obligatorios ausentes o valores inválidos en el cuerpo o los parámetros.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            mensaje: Los datos de la solicitud no son válidos.
+    LibroNoEncontrado:
+      description: No existe un libro con el título o ID indicado, según la operación.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            mensaje: Libro no encontrado.
+    TituloDuplicado:
+      description: Otro libro ya utiliza exactamente el título indicado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            mensaje: Ya existe un libro con ese título.
