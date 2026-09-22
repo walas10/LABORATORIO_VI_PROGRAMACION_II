@@ -1,0 +1,238 @@
+openapi: 3.0.3
+info:
+  title: API de cursos universitarios
+  version: 1.0.0
+  description: |
+    Contrato del Ejercicio 2 para su posterior implementación en el Ejercicio 5
+    con Java y Spring Boot. Los cuerpos de las solicitudes y respuestas usan JSON.
+    El servidor genera el ID de cada curso y este no se puede modificar.
+    El código de cada curso debe ser único y se compara de forma exacta,
+    distinguiendo mayúsculas y minúsculas.
+    Los campos de texto deben contener al menos un carácter distinto de espacio.
+servers:
+  - url: http://localhost:8080
+    description: Servidor local
+tags:
+  - name: Cursos
+    description: Administración de cursos universitarios
+paths:
+  /cursos:
+    post:
+      tags: [Cursos]
+      summary: Crear un curso
+      operationId: crearCurso
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CursoEntrada'
+      responses:
+        '201':
+          description: Curso creado con un ID generado por el servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Curso'
+        '400':
+          $ref: '#/components/responses/SolicitudInvalida'
+        '409':
+          $ref: '#/components/responses/CodigoDuplicado'
+    get:
+      tags: [Cursos]
+      summary: Consultar todos los cursos
+      operationId: consultarCursos
+      responses:
+        '200':
+          description: Lista de cursos. Si no hay registros, devuelve un arreglo vacío ([]).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Curso'
+              example:
+                - id: 1
+                  nombre: Programación II
+                  codigo: PROG-002
+                  creditos: 4
+                  estado: ACTIVO
+  /cursos/codigo/{codigo}:
+    get:
+      tags: [Cursos]
+      summary: Consultar un curso por código
+      description: |
+        Busca un único curso por coincidencia exacta de su código.
+        El código debe codificarse como un segmento de URL cuando contenga
+        caracteres especiales.
+      operationId: consultarCursoPorCodigo
+      parameters:
+        - name: codigo
+          in: path
+          required: true
+          description: Código completo del curso, respetando mayúsculas y minúsculas.
+          schema:
+            type: string
+            minLength: 1
+            pattern: '\S'
+          example: PROG-002
+      responses:
+        '200':
+          description: Curso encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Curso'
+        '400':
+          $ref: '#/components/responses/SolicitudInvalida'
+        '404':
+          $ref: '#/components/responses/CursoNoEncontrado'
+  /cursos/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: ID del curso que se desea actualizar o eliminar.
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+        example: 1
+    put:
+      tags: [Cursos]
+      summary: Actualizar un curso
+      description: |
+        Reemplaza todos los datos editables de un curso existente y conserva su ID.
+        Todos los campos del cuerpo son obligatorios. No crea cursos nuevos.
+        El código puede conservarse o cambiarse por uno que no use otro curso.
+      operationId: actualizarCurso
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CursoEntrada'
+            example:
+              nombre: Programación II
+              codigo: PROG-002
+              creditos: 4
+              estado: INACTIVO
+      responses:
+        '200':
+          description: Curso actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Curso'
+              example:
+                id: 1
+                nombre: Programación II
+                codigo: PROG-002
+                creditos: 4
+                estado: INACTIVO
+        '400':
+          $ref: '#/components/responses/SolicitudInvalida'
+        '404':
+          $ref: '#/components/responses/CursoNoEncontrado'
+        '409':
+          $ref: '#/components/responses/CodigoDuplicado'
+    delete:
+      tags: [Cursos]
+      summary: Eliminar un curso
+      operationId: eliminarCurso
+      responses:
+        '204':
+          description: Curso eliminado. La respuesta no contiene cuerpo.
+        '400':
+          $ref: '#/components/responses/SolicitudInvalida'
+        '404':
+          $ref: '#/components/responses/CursoNoEncontrado'
+components:
+  schemas:
+    CursoEntrada:
+      type: object
+      description: Datos obligatorios para crear o actualizar un curso, sin ID.
+      required:
+        - nombre
+        - codigo
+        - creditos
+        - estado
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          pattern: '\S'
+          example: Programación II
+        codigo:
+          type: string
+          minLength: 1
+          pattern: '\S'
+          description: Código único del curso, comparado de forma exacta.
+          example: PROG-002
+        creditos:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Cantidad entera positiva de créditos académicos.
+          example: 4
+        estado:
+          type: string
+          description: Indica si el curso está activo o inactivo.
+          enum: [ACTIVO, INACTIVO]
+          example: ACTIVO
+      example:
+        nombre: Programación II
+        codigo: PROG-002
+        creditos: 4
+        estado: ACTIVO
+    Curso:
+      description: Datos de un curso, incluido el ID generado por el servidor.
+      allOf:
+        - $ref: '#/components/schemas/CursoEntrada'
+        - type: object
+          required: [id]
+          properties:
+            id:
+              type: integer
+              format: int64
+              minimum: 1
+              readOnly: true
+              example: 1
+      example:
+        id: 1
+        nombre: Programación II
+        codigo: PROG-002
+        creditos: 4
+        estado: ACTIVO
+    Error:
+      type: object
+      required: [mensaje]
+      properties:
+        mensaje:
+          type: string
+          example: Curso no encontrado.
+  responses:
+    SolicitudInvalida:
+      description: JSON mal formado, campos obligatorios ausentes o valores inválidos en el cuerpo o los parámetros.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            mensaje: Los datos de la solicitud no son válidos.
+    CursoNoEncontrado:
+      description: No existe un curso con el código o ID indicado, según la operación.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            mensaje: Curso no encontrado.
+    CodigoDuplicado:
+      description: Otro curso ya utiliza exactamente el código indicado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            mensaje: Ya existe un curso con ese código.
