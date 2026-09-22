@@ -1,0 +1,253 @@
+openapi: 3.0.3
+info:
+  title: API de reservas de un hotel
+  version: 1.0.0
+  description: |
+    Contrato del Ejercicio 3 para su posterior implementación en el Ejercicio 6
+    con Java y Spring Boot. Los cuerpos de las solicitudes y respuestas usan JSON.
+    El servidor genera el ID y asigna el estado CONFIRMADA al crear una reserva.
+    El ID y el estado no se envían en los cuerpos de creación o actualización.
+    DELETE cancela la reserva cambiando su estado a CANCELADA, sin eliminarla.
+    Las reservas canceladas siguen disponibles en las consultas.
+    Los campos de texto deben contener al menos un carácter distinto de espacio.
+    La fecha de salida debe ser posterior a la fecha de entrada; esta regla
+    debe validarse en la implementación porque OpenAPI 3.0 no compara campos.
+    Este contrato básico no incluye validación de disponibilidad ni detección
+    de reservas superpuestas para una habitación.
+servers:
+  - url: http://localhost:8080
+    description: Servidor local
+tags:
+  - name: Reservas
+    description: Administración de reservas de hotel
+paths:
+  /reservas:
+    post:
+      tags: [Reservas]
+      summary: Crear una reserva
+      operationId: crearReserva
+      description: Crea una reserva con ID generado por el servidor y estado CONFIRMADA.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReservaEntrada'
+      responses:
+        '201':
+          description: Reserva creada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reserva'
+        '400':
+          $ref: '#/components/responses/SolicitudInvalida'
+    get:
+      tags: [Reservas]
+      summary: Consultar todas las reservas
+      operationId: consultarReservas
+      responses:
+        '200':
+          description: Lista de reservas, incluidas las canceladas. Si no hay registros, devuelve un arreglo vacío ([]).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Reserva'
+              example:
+                - id: 1
+                  nombreCliente: Ana López
+                  habitacion: '101'
+                  fechaEntrada: '2026-10-10'
+                  fechaSalida: '2026-10-12'
+                  estado: CONFIRMADA
+  /reservas/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: ID de la reserva que se desea consultar, actualizar o cancelar.
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+        example: 1
+    get:
+      tags: [Reservas]
+      summary: Consultar una reserva por ID
+      operationId: consultarReservaPorId
+      responses:
+        '200':
+          description: Reserva encontrada, ya sea confirmada o cancelada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reserva'
+        '400':
+          $ref: '#/components/responses/SolicitudInvalida'
+        '404':
+          $ref: '#/components/responses/ReservaNoEncontrada'
+    put:
+      tags: [Reservas]
+      summary: Actualizar una reserva
+      operationId: actualizarReserva
+      description: |
+        Reemplaza todos los datos editables de una reserva CONFIRMADA existente.
+        Todos los campos del cuerpo son obligatorios. Conserva el ID y el estado.
+        No crea reservas nuevas ni permite actualizar o reactivar reservas CANCELADAS.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReservaEntrada'
+            example:
+              nombreCliente: Ana López
+              habitacion: '102'
+              fechaEntrada: '2026-10-10'
+              fechaSalida: '2026-10-13'
+      responses:
+        '200':
+          description: Reserva actualizada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reserva'
+              example:
+                id: 1
+                nombreCliente: Ana López
+                habitacion: '102'
+                fechaEntrada: '2026-10-10'
+                fechaSalida: '2026-10-13'
+                estado: CONFIRMADA
+        '400':
+          $ref: '#/components/responses/SolicitudInvalida'
+        '404':
+          $ref: '#/components/responses/ReservaNoEncontrada'
+        '409':
+          description: La reserva está cancelada y no puede actualizarse.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                mensaje: No se puede actualizar una reserva cancelada.
+    delete:
+      tags: [Reservas]
+      summary: Cancelar una reserva
+      operationId: cancelarReserva
+      description: |
+        Cambia el estado a CANCELADA y conserva el registro y sus demás datos.
+        No requiere cuerpo de solicitud. Devuelve la reserva cancelada como JSON.
+        Si ya estaba cancelada, devuelve 200 con la misma reserva sin modificarla.
+        Repetir la operación no produce cambios adicionales (operación idempotente).
+        Si el ID no existe, devuelve 404.
+      responses:
+        '200':
+          description: Reserva cancelada o que ya estaba cancelada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reserva'
+              example:
+                id: 1
+                nombreCliente: Ana López
+                habitacion: '101'
+                fechaEntrada: '2026-10-10'
+                fechaSalida: '2026-10-12'
+                estado: CANCELADA
+        '400':
+          $ref: '#/components/responses/SolicitudInvalida'
+        '404':
+          $ref: '#/components/responses/ReservaNoEncontrada'
+components:
+  schemas:
+    ReservaEntrada:
+      type: object
+      description: Datos editables obligatorios para crear o actualizar una reserva.
+      required:
+        - nombreCliente
+        - habitacion
+        - fechaEntrada
+        - fechaSalida
+      properties:
+        nombreCliente:
+          type: string
+          minLength: 1
+          pattern: '\S'
+          example: Ana López
+        habitacion:
+          type: string
+          minLength: 1
+          pattern: '\S'
+          description: Número o identificador de la habitación, representado como texto.
+          example: '101'
+        fechaEntrada:
+          type: string
+          format: date
+          description: Fecha de entrada en formato YYYY-MM-DD, sin hora.
+          example: '2026-10-10'
+        fechaSalida:
+          type: string
+          format: date
+          description: Fecha de salida en formato YYYY-MM-DD, estrictamente posterior a fechaEntrada.
+          example: '2026-10-12'
+      example:
+        nombreCliente: Ana López
+        habitacion: '101'
+        fechaEntrada: '2026-10-10'
+        fechaSalida: '2026-10-12'
+    Reserva:
+      description: Reserva con ID y estado administrados por el servidor.
+      allOf:
+        - $ref: '#/components/schemas/ReservaEntrada'
+        - type: object
+          required: [id, estado]
+          properties:
+            id:
+              type: integer
+              format: int64
+              minimum: 1
+              readOnly: true
+              example: 1
+            estado:
+              type: string
+              readOnly: true
+              enum: [CONFIRMADA, CANCELADA]
+              description: Se asigna CONFIRMADA al crear y cambia a CANCELADA mediante DELETE.
+              example: CONFIRMADA
+      example:
+        id: 1
+        nombreCliente: Ana López
+        habitacion: '101'
+        fechaEntrada: '2026-10-10'
+        fechaSalida: '2026-10-12'
+        estado: CONFIRMADA
+    Error:
+      type: object
+      required: [mensaje]
+      properties:
+        mensaje:
+          type: string
+          example: Reserva no encontrada.
+  responses:
+    SolicitudInvalida:
+      description: |
+        JSON mal formado, campos obligatorios ausentes o valores inválidos.
+        Incluye un ID que no sea entero positivo, fechas inexistentes o con
+        formato incorrecto y fechaSalida menor o igual a fechaEntrada.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            mensaje: Los datos de la solicitud no son válidos.
+    ReservaNoEncontrada:
+      description: No existe una reserva con el ID indicado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            mensaje: Reserva no encontrada.
